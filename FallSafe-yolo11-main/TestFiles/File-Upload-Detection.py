@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from ultralytics import YOLO
 import cv2
 import glob
 import sys
@@ -163,32 +164,108 @@ class FallDetectionApp:
             self.update_gui(f"Error converting video: {e}")
             return
 
+
+
     def process_video(self, video_path):
-        """Run YOLO model prediction command to detect falls in the converted video."""
-        model_path = "model/model.pt"
-        
-        common_params = f"model={model_path} source={video_path} conf={CONFIDENCE_THRESHOLD} save=True project={self.save_dir} name=output device=0 workers=8 batch=32"
-        
-        command = f"yolo predict {common_params} stream_buffer=False"
+        """Run YOLO prediction and display processing progress."""
 
-        cv2.namedWindow("Frame", cv2.WINDOW_NORMAL)
+        model_path = os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__),
+                "..",
+                "model",
+                "model.pt"
+            )
+        )
 
-        # Run YOLO command and capture output
         try:
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, shell=True, encoding='utf-8')
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(
+                    f"Model not found: {model_path}"
+                )
+
+            self.update_gui("Loading YOLO model...")
+
+            model = YOLO(model_path)
+
+            self.update_gui("YOLO loaded. Starting video analysis...")
+
+            # Get total frames
+            cap = cv2.VideoCapture(video_path)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            cap.release()
+
+            self.update_gui(f"Total frames: {total_frames}")
+
+            results = model.predict(
+                source=video_path,
+                conf=CONFIDENCE_THRESHOLD,
+                save=True,
+                project=self.save_dir,
+                name="output",
+                exist_ok=True,
+                device="cpu",
+                stream=True,
+                verbose=False,
+                imgsz=640
+            )
+
+            frame_count = 0
+
+            for result in results:
+                frame_count += 1
+
+                # Update progress every 10 frames
+                if frame_count % 10 == 0 or frame_count == total_frames:
+                    percent = (
+                        frame_count / total_frames * 100
+                        if total_frames > 0 else 0
+                    )
+
+                    self.update_gui(
+                        f"Processing: {frame_count}/{total_frames} "
+                        f"({percent:.1f}%)"
+                    )
+
+                # Check detected objects
+                if result.boxes is not None:
+                    for box in result.boxes:
+                        class_id = int(box.cls[0])
+                        confidence = float(box.conf[0])
+                        class_name = result.names[class_id]
+
+                        self.update_gui(
+                            f"Detected: {class_name} "
+                            f"| Confidence: {confidence:.2f}"
+                        )
+
+            self.update_gui("Video analysis completed!")
+
+            self.update_gui(
+                f"Processed {frame_count} frames."
+            )
+
+            self.update_gui(
+                f"Output folder: {os.path.join(self.save_dir, 'output')}"
+            )
+
+            self.fall_status_label.config(
+                text="Processing completed",
+                style="Select.TLabel"
+            )
+
         except Exception as e:
-            self.update_gui(f"Error running YOLO command: {e}")
-            return False
+            self.update_gui(f"YOLO processing error: {e}")
 
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-        with open(output_file_path, "w", encoding='utf-8') as output_file:
-            for line in process.stdout:
-                output_file.write(line)
-                self.update_gui(line.strip())
-                self.process_yolo_output(line)
+            self.fall_status_label.config(
+                text="Processing failed",
+                style="Select.TLabel"
+            )
 
-        self.update_gui(f"Processing completed for {self.selected_file}.")
-        self.fall_status_label.config(text="Processing completed", style="Select.TLabel")
+        finally:
+            self.start_button.config(state=tk.NORMAL)
+
+
 
     def process_yolo_output(self, line):
         """Process YOLO11 output to detect falls and handle email alerts."""

@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fall Detection System</title>
     <link rel="stylesheet" href="static/styles.css">
 </head>
+
 <body>
     <div class="container">
         <h1>Fall Detection System</h1>
@@ -15,6 +17,7 @@
         <div id="videoStream" style="display: none;">
             <h3>Live Camera Feed:</h3>
             <img src="{{ url_for('video_feed') }}" alt="Live Video Feed">
+            <button id="pauseBtn" type="button">⏸ Tạm dừng</button>
         </div>
         <div id="alertMessage" style="display: none; color: red;">
             <h3>ALERT: FALL DETECTED!</h3>
@@ -44,4 +47,5 @@
     <footer>&copy; 2024 FallSafe Project</footer>
     <script src="static/script.js"></script>
 </body>
+
 </html>

@@ -68,3 +68,12 @@ function updateFallStatus() {
     });
 }
 setInterval(updateFallStatus, 500);
+const pauseBtn = document.getElementById("pauseBtn");
+pauseBtn.addEventListener("click", () => {
+  fetch("/toggle_pause", { method: "POST" })
+    .then((response) => response.json())
+    .then((data) => {
+      pauseBtn.innerText = data.paused ? "▶ Tiếp tục" : "⏸ Tạm dừng";
+    })
+    .catch((error) => alert(`Error: ${error.message}`));
+});
